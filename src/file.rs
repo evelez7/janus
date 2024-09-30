@@ -14,7 +14,7 @@ pub fn lock(file_name: String, begin: usize, end: usize) -> Result<bool> {
     {
         let file = OpenOptions::new()
             .read(true)
-            .open(file_name.clone())
+            .open(&file_name)
             .expect("File couldn't open!");
         let line_count = BufReader::new(file).lines().count();
 
@@ -25,10 +25,8 @@ pub fn lock(file_name: String, begin: usize, end: usize) -> Result<bool> {
 
     let file = OpenOptions::new()
         .read(true)
-        //.write(true)
         .open(".janus/locks.json")
         .expect("Could not open locks.json");
-    //let file_write_copy = file.try_clone().expect("Could not copy lock.json");
     let mut locks: Vec<Lock> =
         serde_json::from_reader(BufReader::new(file)).expect("Could not read locks.json.");
 
@@ -47,9 +45,9 @@ pub fn lock(file_name: String, begin: usize, end: usize) -> Result<bool> {
         .open(".janus/locks.json")
         .expect("Could not open locks.json to write");
     let new_lock = Lock {
-        file_name: file_name,
-        begin: begin,
-        end: end,
+        file_name,
+        begin,
+        end,
     };
     locks.push(new_lock);
     serde_json::to_writer(BufWriter::new(file_write_copy), &locks)
