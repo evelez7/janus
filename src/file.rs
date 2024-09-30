@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader, BufWriter, Result};
+use sha2::{Digest, Sha256};
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, BufWriter, Result, Write};
 
 #[derive(Serialize, Deserialize)]
 struct Lock {
@@ -54,5 +55,32 @@ pub fn lock(file_name: String, begin: usize, end: usize) -> Result<bool> {
     serde_json::to_writer(BufWriter::new(file_write_copy), &locks)
         .expect("Failed to write lock to file.");
 
+    Ok(true)
+}
+
+pub fn add(file_name: &String) -> Result<bool> {
+    let content = std::fs::read_to_string(file_name).expect("Could not read file to string");
+    let mut hasher = Sha256::new();
+    hasher.update(&content);
+    let hash = format!("{:X}", hasher.finalize());
+    let mut path = format!(".janus/objects/{}", &hash[0..2]);
+    fs::create_dir(&path).unwrap_or_else(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+        } else {
+            panic!("Could not create directories for new add: {error:?}");
+        }
+    });
+
+    path.push('/');
+    path.push_str(&hash[3..hash.len()]);
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(path)
+        .expect("Could not create/open file to add");
+    file.write_all(content.as_bytes())
+        .expect("Could not write file content to new file in object directory.");
     Ok(true)
 }

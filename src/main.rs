@@ -25,6 +25,8 @@ enum Commands {
         /// The line to end the lock
         end: usize,
     },
+    /// Add a file
+    Add { file_name: String },
 }
 
 fn main() {
@@ -40,8 +42,7 @@ fn main() {
                 "Locking {:?} from lines {:?} to {:?}",
                 file_name, begin, end
             );
-            file::lock(file_name.to_string(), *begin, *end)
-                .expect("Could not write lock to file");
+            file::lock(file_name.to_string(), *begin, *end).expect("Could not write lock to file");
         }
 
         Commands::Init => {
@@ -54,6 +55,11 @@ fn main() {
             locks
                 .write_all(b"[]\n")
                 .expect("Could not write to locks file");
+        }
+
+        Commands::Add { file_name } => {
+            println!("Adding file {:?}", file_name);
+            file::add(file_name).expect("Could not add file.");
         }
     }
 }
