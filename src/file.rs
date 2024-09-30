@@ -56,11 +56,66 @@ pub fn lock(file_name: String, begin: usize, end: usize) -> Result<bool> {
     Ok(true)
 }
 
-pub fn add(file_name: &String) -> Result<bool> {
-    let content = std::fs::read_to_string(file_name).expect("Could not read file to string");
+#[derive(Eq, PartialEq, PartialOrd)]
+struct IndexEntry {
+    hash: String,
+    path: String,
+}
+
+impl std::cmp::Ord for IndexEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.path > other.path {
+            std::cmp::Ordering::Greater
+        } else if self.path < other.path {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    }
+}
+
+fn add_index(hash: &String, path: &String) {
+    let index_file = OpenOptions::new()
+        .write(true)
+        .read(true)
+        .append(true)
+        .open(".janus/index")
+        .expect("Could not open index!");
+    let mut entries: Vec<IndexEntry> = Vec::new();
+    for line_result in BufReader::new(&index_file).lines() {
+        let line = line_result.unwrap();
+        let entry_split: Vec<&str> = line.split(' ').collect();
+        let new_entry = IndexEntry {
+            hash: entry_split[0].to_string(),
+            path: entry_split[1].to_string(),
+        };
+        entries.push(new_entry);
+    }
+    let new_entry = IndexEntry {
+        hash: hash.to_string(),
+        path: path.to_string(),
+    };
+    match entries.binary_search(&new_entry) {
+        Ok(_) => (),
+        Err(index) => entries.insert(index, new_entry),
+    }
+    index_file
+        .set_len(0)
+        .expect("Could not clear index file before rewriting contents.");
+    let mut index_writer = BufWriter::new(index_file);
+    for entry in entries {
+        index_writer
+            .write(format!("{} {}\n", entry.hash, entry.path).as_bytes())
+            .expect("Could not write to index file");
+    }
+}
+
+pub fn add(path: &String) -> Result<bool> {
+    let content = std::fs::read_to_string(path).expect("Could not read file to string");
     let mut hasher = Sha256::new();
     hasher.update(&content);
-    let hash = format!("{:X}", hasher.finalize());
+    let hash = format!("{:x}", hasher.finalize());
+    add_index(&hash, path);
     let mut path = format!(".janus/objects/{}", &hash[0..2]);
     fs::create_dir(&path).unwrap_or_else(|error| {
         if error.kind() == std::io::ErrorKind::AlreadyExists {

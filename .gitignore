@@ -15,3 +15,5 @@ Cargo.lock
 main.cpp
 .vscode/
 .janus/
+# test files
+*.cpp

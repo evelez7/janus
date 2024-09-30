@@ -26,7 +26,7 @@ enum Commands {
         end: usize,
     },
     /// Add a file
-    Add { file_name: String },
+    Add { path: String },
 }
 
 fn main() {
@@ -50,6 +50,7 @@ fn main() {
             fs::create_dir_all(".janus/refs").expect("Could not create refs directory.");
             fs::create_dir(".janus/objects").expect("Could not create objects directory.");
 
+            fs::File::create(".janus/index").expect("Could not create index file");
             let mut locks =
                 fs::File::create(".janus/locks.json").expect("Could not create locks.json");
             locks
@@ -57,9 +58,9 @@ fn main() {
                 .expect("Could not write to locks file");
         }
 
-        Commands::Add { file_name } => {
-            println!("Adding file {:?}", file_name);
-            file::add(file_name).expect("Could not add file.");
+        Commands::Add { path } => {
+            println!("Adding file {:?}", path);
+            file::add(path).expect("Could not add file.");
         }
     }
 }
