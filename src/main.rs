@@ -3,7 +3,7 @@ use std::{
     fs::{self},
     io::Write,
 };
-pub mod file_manager;
+pub mod file;
 
 #[derive(Debug, Parser)]
 #[clap(name = "janus", version)]
@@ -40,7 +40,7 @@ fn main() {
                 "Locking {:?} from lines {:?} to {:?}",
                 file_name, begin, end
             );
-            file_manager::lock(file_name.to_string(), *begin, *end)
+            file::lock(file_name.to_string(), *begin, *end)
                 .expect("Could not write lock to file");
         }
 
