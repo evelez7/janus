@@ -27,6 +27,8 @@ enum Commands {
     },
     /// Add a file
     Add { path: String },
+    /// Show staged files
+    Status,
 }
 
 fn main() {
@@ -61,6 +63,11 @@ fn main() {
         Commands::Add { path } => {
             println!("Adding file {:?}", path);
             file::add(path).expect("Could not add file.");
+        }
+
+        Commands::Status => {
+            println!("Files currently staged:");
+            file::status();
         }
     }
 }

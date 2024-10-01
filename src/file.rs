@@ -74,31 +74,41 @@ impl std::cmp::Ord for IndexEntry {
     }
 }
 
-fn add_index(hash: &String, path: &String) {
-    let index_file = OpenOptions::new()
-        .write(true)
+fn parse_index_entries() -> Vec<IndexEntry> {
+    let index = OpenOptions::new()
         .read(true)
-        .append(true)
         .open(".janus/index")
-        .expect("Could not open index!");
-    let mut entries: Vec<IndexEntry> = Vec::new();
-    for line_result in BufReader::new(&index_file).lines() {
-        let line = line_result.unwrap();
-        let entry_split: Vec<&str> = line.split(' ').collect();
-        let new_entry = IndexEntry {
-            hash: entry_split[0].to_string(),
-            path: entry_split[1].to_string(),
-        };
-        entries.push(new_entry);
+        .expect("Could not open index file to parse entries!");
+    let lines: Vec<String> = BufReader::new(index)
+        .lines()
+        .map(|line| line.expect("Could not parse line of index file!"))
+        .collect();
+    let mut index_entries: Vec<IndexEntry> = Vec::new();
+    for line in lines {
+        let index_entry_split: Vec<&str> = line.split(' ').collect();
+        index_entries.push(IndexEntry {
+            hash: index_entry_split[0].to_string(),
+            path: index_entry_split[1].to_string(),
+        });
     }
+    index_entries
+}
+
+fn add_index(hash: &String, path: &String) {
     let new_entry = IndexEntry {
         hash: hash.to_string(),
         path: path.to_string(),
     };
+    let mut entries = parse_index_entries();
     match entries.binary_search(&new_entry) {
         Ok(_) => (),
         Err(index) => entries.insert(index, new_entry),
     }
+
+    let index_file = OpenOptions::new()
+        .write(true)
+        .open(".janus/index")
+        .expect("Could not open index file to write!");
     index_file
         .set_len(0)
         .expect("Could not clear index file before rewriting contents.");
@@ -136,4 +146,10 @@ pub fn add(path: &String) -> Result<bool> {
     file.write_all(content.as_bytes())
         .expect("Could not write file content to new file in object directory.");
     Ok(true)
+}
+
+pub fn status() {
+    for entry in parse_index_entries() {
+        println!("{}", entry.path);
+    }
 }
