@@ -94,15 +94,10 @@ fn parse_index_entries() -> Vec<IndexEntry> {
     index_entries
 }
 
-fn add_index(hash: &String, path: &String) {
-    let new_entry = IndexEntry {
-        hash: hash.to_string(),
-        path: path.to_string(),
-    };
-    let mut entries = parse_index_entries();
-    match entries.binary_search(&new_entry) {
+fn add_index_entry(new_entry: IndexEntry, mut index: Vec<IndexEntry>) {
+    match index.binary_search(&new_entry) {
         Ok(_) => (),
-        Err(index) => entries.insert(index, new_entry),
+        Err(pos) => index.insert(pos, new_entry),
     }
 
     let index_file = OpenOptions::new()
@@ -113,7 +108,7 @@ fn add_index(hash: &String, path: &String) {
         .set_len(0)
         .expect("Could not clear index file before rewriting contents.");
     let mut index_writer = BufWriter::new(index_file);
-    for entry in entries {
+    for entry in index {
         index_writer
             .write(format!("{} {}\n", entry.hash, entry.path).as_bytes())
             .expect("Could not write to index file");
@@ -121,11 +116,23 @@ fn add_index(hash: &String, path: &String) {
 }
 
 pub fn add(path: &String) -> Result<bool> {
+    let index = parse_index_entries();
+    let mut new_entry = IndexEntry {
+        hash: "".to_string(),
+        path: path.to_string(),
+    };
+    match index.binary_search(&new_entry) {
+        Ok(_) => return Ok(false),
+        Err(_) => (),
+    };
     let content = std::fs::read_to_string(path).expect("Could not read file to string");
     let mut hasher = Sha256::new();
     hasher.update(&content);
     let hash = format!("{:x}", hasher.finalize());
-    add_index(&hash, path);
+    // FIXME: See about giving this a lifetime to live long enough to be written
+    // Would like to avoid this clone
+    new_entry.hash = hash.clone();
+    add_index_entry(new_entry, index);
     let mut path = format!(".janus/objects/{}", &hash[0..2]);
     fs::create_dir(&path).unwrap_or_else(|error| {
         if error.kind() == std::io::ErrorKind::AlreadyExists {
