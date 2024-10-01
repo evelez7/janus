@@ -29,6 +29,8 @@ enum Commands {
     Add { path: String },
     /// Show staged files
     Status,
+    /// Remove a staged file
+    Remove { path: String },
 }
 
 fn main() {
@@ -68,6 +70,11 @@ fn main() {
         Commands::Status => {
             println!("Files currently staged:");
             file::status();
+        }
+
+        Commands::Remove { path } => {
+            println!("Removing file {} from staging.", path);
+            file::remove(path);
         }
     }
 }

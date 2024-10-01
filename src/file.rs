@@ -94,12 +94,7 @@ fn parse_index_entries() -> Vec<IndexEntry> {
     index_entries
 }
 
-fn add_index_entry(new_entry: IndexEntry, mut index: Vec<IndexEntry>) {
-    match index.binary_search(&new_entry) {
-        Ok(_) => (),
-        Err(pos) => index.insert(pos, new_entry),
-    }
-
+fn write_index_entries(index: Vec<IndexEntry>) {
     let index_file = OpenOptions::new()
         .write(true)
         .open(".janus/index")
@@ -113,6 +108,14 @@ fn add_index_entry(new_entry: IndexEntry, mut index: Vec<IndexEntry>) {
             .write(format!("{} {}\n", entry.hash, entry.path).as_bytes())
             .expect("Could not write to index file");
     }
+}
+
+fn add_index_entry(new_entry: IndexEntry, mut index: Vec<IndexEntry>) {
+    match index.binary_search(&new_entry) {
+        Ok(_) => (),
+        Err(pos) => index.insert(pos, new_entry),
+    }
+    write_index_entries(index);
 }
 
 pub fn add(path: &String) -> Result<bool> {
@@ -159,4 +162,17 @@ pub fn status() {
     for entry in parse_index_entries() {
         println!("{}", entry.path);
     }
+}
+
+pub fn remove(path: &String) {
+    let mut index = parse_index_entries();
+    let temp_entry = IndexEntry {
+        hash: "".to_string(),
+        path: path.to_string(),
+    };
+    match index.binary_search(&temp_entry) {
+        Ok(pos) => drop(index.remove(pos)),
+        Err(_) => (),
+    };
+    write_index_entries(index);
 }
