@@ -31,6 +31,10 @@ enum Commands {
     Status,
     /// Remove a staged file
     Remove { path: String },
+    /// Show the contents of a file
+    CatFile { hash: String },
+    /// Delete the hidden directory
+    Clean,
 }
 
 fn main() {
@@ -75,6 +79,14 @@ fn main() {
         Commands::Remove { path } => {
             println!("Removing file {} from staging.", path);
             file::remove(path);
+        }
+
+        Commands::CatFile { hash } => {
+            file::cat_file(hash);
+        }
+
+        Commands::Clean => {
+            file::clean();
         }
     }
 }

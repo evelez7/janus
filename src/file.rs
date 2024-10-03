@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Result, Write};
+use std::fs::{self, OpenOptions, remove_dir_all};
+use std::io::{BufRead, BufReader, BufWriter, Read, Result, Write};
+use zstd;
 
 #[derive(Serialize, Deserialize)]
 struct Lock {
@@ -145,16 +146,19 @@ pub fn add(path: &String) -> Result<bool> {
     });
 
     path.push('/');
-    path.push_str(&hash[3..hash.len()]);
+    path.push_str(&hash[2..hash.len()]);
 
-    let mut file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .create(true)
-        .open(path)
-        .expect("Could not create/open file to add");
-    file.write_all(content.as_bytes())
-        .expect("Could not write file content to new file in object directory.");
+    zstd::stream::copy_encode(
+        format!("blob {}\0{}", content.len(), content).as_bytes(),
+        OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(path)
+            .expect("Could not create/open file to add!"),
+        6,
+    )
+    .unwrap();
     Ok(true)
 }
 
@@ -175,4 +179,32 @@ pub fn remove(path: &String) {
         Err(_) => (),
     };
     write_index_entries(index);
+}
+
+pub fn cat_file(hash: &String) {
+    let file = OpenOptions::new()
+        .read(true)
+        .open(format!(
+            ".janus/objects/{}/{}",
+            &hash[0..2],
+            &hash[2..hash.len()]
+        ))
+        .unwrap();
+    let decoder = zstd::Decoder::new(file).unwrap();
+    let mut content = String::new();
+    BufReader::new(decoder)
+        .read_to_string(&mut content)
+        .unwrap();
+    println!("{}", content.split('\0').nth(1).unwrap());
+}
+
+pub fn clean() {
+    use std::io::{stdin, stdout};
+    print!("Are you sure you want to delete the .janus directory?? [y/N]: ");
+    stdout().flush().unwrap();
+    let mut answer = String::new();
+    stdin().lock().read_line(&mut answer).unwrap();
+    if answer.trim().to_lowercase() == "y" || answer.trim().to_lowercase() == "yes" {
+        remove_dir_all(".janus").unwrap();
+    }
 }
