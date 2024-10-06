@@ -35,6 +35,8 @@ enum Commands {
     CatFile { hash: String },
     /// Delete the hidden directory
     Clean,
+    /// Commit changes
+    Commit,
 }
 
 fn main() {
@@ -87,6 +89,10 @@ fn main() {
 
         Commands::Clean => {
             file::clean();
+        }
+
+        Commands::Commit => {
+            file::commit();
         }
     }
 }

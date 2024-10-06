@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::{self, OpenOptions, remove_dir_all};
+use std::collections::HashMap;
+use std::fs::{self, remove_dir_all, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Read, Result, Write};
+use std::path::Path;
 use zstd;
 
 #[derive(Serialize, Deserialize)]
@@ -119,6 +121,8 @@ fn add_index_entry(new_entry: IndexEntry, mut index: Vec<IndexEntry>) {
     write_index_entries(index);
 }
 
+// FIXME: Support adding directories
+// Would involve finding files in all the directories below it that are staged
 pub fn add(path: &String) -> Result<bool> {
     let index = parse_index_entries();
     let mut new_entry = IndexEntry {
@@ -206,5 +210,107 @@ pub fn clean() {
     stdin().lock().read_line(&mut answer).unwrap();
     if answer.trim().to_lowercase() == "y" || answer.trim().to_lowercase() == "yes" {
         remove_dir_all(".janus").unwrap();
+    }
+}
+
+#[derive(Clone)]
+struct TreeObjectEntry {
+    name: String,
+    blob: bool,
+    hash: String,
+}
+
+struct TreeObject {
+    /// The full name of the object
+    path: String,
+    entries: Vec<TreeObjectEntry>,
+}
+
+pub fn commit() {
+    let index: Vec<IndexEntry> = parse_index_entries();
+    let mut last_object = TreeObjectEntry {
+        name: "".to_string(),
+        blob: true,
+        hash: "".to_string(),
+    };
+    let mut tree_objects: HashMap<String, TreeObject> = HashMap::new();
+    for entry in index {
+        let mut entry_path = Path::new(entry.path.as_str());
+        let index_hash_ref = &entry.hash;
+        loop {
+            if entry_path.is_file() {
+                last_object = TreeObjectEntry {
+                    name: entry_path
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_string(),
+                    blob: true,
+                    hash: index_hash_ref.to_string(),
+                }
+            } else if entry_path.is_dir() {
+                let mut new_tree_object = TreeObject {
+                    path: entry_path.to_str().unwrap().to_string(),
+                    entries: Vec::new(),
+                };
+
+                if tree_objects.is_empty() {
+                    new_tree_object.entries.push(last_object.clone());
+                    tree_objects.insert(entry_path.to_str().unwrap().to_string(), new_tree_object);
+                } else {
+                    let x = tree_objects.get_mut(&entry_path.to_str().unwrap().to_string());
+                    if !x.is_none() {
+                        let existing_tree_obj = x.unwrap();
+                        // FIXME: Avoid this clone
+                        existing_tree_obj.entries.push(last_object.clone());
+                    }
+                }
+            }
+
+            let parent_path = entry_path.parent();
+            if parent_path.is_none() {
+                break;
+            } else {
+                entry_path = parent_path.unwrap();
+            }
+        }
+    }
+
+    for object in tree_objects.values_mut() {
+        let mut entry_bytes: Vec<String> = Vec::new();
+        for entry in &object.entries {
+            if entry.blob {
+                entry_bytes.push(format!("blob "));
+            } else {
+                entry_bytes.push("tree ".to_string());
+            }
+            // FIXME: Avoid this clone
+            entry_bytes.push(format!("{} {}\0", entry.hash.clone(), entry.name.clone()));
+        }
+        let content = entry_bytes.concat().to_string();
+        let mut hasher = Sha256::new();
+        hasher.update(&content);
+        let hash = format!("{:x}", hasher.finalize());
+        let mut path = format!(".janus/objects/{}", &hash[0..2]);
+        fs::create_dir(&path).unwrap_or_else(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+            } else {
+                panic!("Could not create directories for new add: {error:?}");
+            }
+        });
+        path.push('/');
+        path.push_str(&hash[2..hash.len()]);
+        zstd::stream::copy_encode(
+            format!("blob {}\0{}", content.len(), content).as_bytes(),
+            OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(path)
+                .expect("Could not create/open file to add!"),
+            6,
+        )
+        .unwrap();
     }
 }
