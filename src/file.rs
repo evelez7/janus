@@ -264,6 +264,10 @@ pub fn commit() {
                         let existing_tree_obj = x.unwrap();
                         // FIXME: Avoid this clone
                         existing_tree_obj.entries.push(last_object.clone());
+                    } else {
+                        new_tree_object.entries.push(last_object.clone());
+                        tree_objects
+                            .insert(entry_path.to_str().unwrap().to_string(), new_tree_object);
                     }
                 }
             }
